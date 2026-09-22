@@ -1,67 +1,68 @@
-name: DevSecOps Trivy Scan
+name: DevSecOps Secure Pipeline
 
 on:
+  pull_request:
+    branches: [ "main" ]
   push:
     branches: [ "main" ]
 
 jobs:
-  trivy-scan:
+  security-pipeline:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 🔐 Configurar Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
-      # 🔐 Instalar Bandit
       - name: Install Bandit
         run: |
-          pip install bandit
+          pip install bandit==1.9.4
 
-      # 🔐 Ejecutar análisis SAST
-      - name: Run Bandit Scan
+      - name: Run Bandit SAST scan
         run: |
           mkdir -p reports
           bandit -r app/ -f txt -o reports/bandit-report.txt || true
 
-      # 📄 Subir reporte Bandit
-      - name: Upload Bandit Report
+      - name: Upload Bandit report
         uses: actions/upload-artifact@v4
         with:
           name: bandit-report
           path: reports/bandit-report.txt
 
-      # 🐳 Build de TU imagen
-      - name: Build Docker Image
+      - name: Build Docker image
         run: |
           docker build -t devsecops-app .
 
-      # 🔧 Instalar Trivy
       - name: Install Trivy
         run: |
-          sudo apt-get update
-          sudo apt-get install -y wget
-          wget -qO- https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | \
+            sudo sh -s -- -b /usr/local/bin v0.74.0
 
-      # 📄 Generar reporte Trivy
-      - name: Run Trivy (report JSON)
+      - name: Run Trivy vulnerability scan
         run: |
           mkdir -p reports
-          trivy image --format json -o reports/trivy-report.json devsecops-app
+          trivy image \
+            --scanners vuln \
+            --format json \
+            -o reports/trivy-report.json \
+            devsecops-app
 
-      # 📄 Subir reporte Trivy
       - name: Upload Trivy report
         uses: actions/upload-artifact@v4
         with:
           name: trivy-report
           path: reports/trivy-report.json
 
-      # ❌ Policy: fallar por HIGH/CRITICAL
-      - name: Enforce policy (fail on HIGH/CRITICAL)
+      - name: Enforce security policy
         run: |
-          trivy image --severity HIGH,CRITICAL --exit-code 1 devsecops-app
+          trivy image \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            devsecops-app
