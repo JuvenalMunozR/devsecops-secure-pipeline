@@ -1,5 +1,5 @@
 # Imagen base ligera
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 # Variables de entorno
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -15,7 +15,9 @@ WORKDIR /app
 COPY app/ /app
 
 # Instalar dependencias
-RUN pip install --no-cache-dir flask
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Cambiar permisos
 RUN chown -R appuser:appuser /app
